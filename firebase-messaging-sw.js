@@ -1,4 +1,4 @@
-// firebase-messaging-sw.js (ROOT ONLY: /firebase-messaging-sw.js)
+// firebase-messaging-sw.js (root)
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
@@ -13,83 +13,45 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// 🔥 Handle FCM background messages - NO event.waitUntil!
+// Keep track of active call notifications to avoid stacking
+let activeCallId = null;
+
 messaging.onBackgroundMessage((payload) => {
     console.log('🔥 FCM Background message:', payload);
-
-    const title =
-        payload.notification?.title ||
-        payload.data?.title ||
-        '📞 Incoming Call';
-
+    
+    const callId = payload.data?.callId;
+    const title = payload.data?.title || '📞 Incoming Call';
     const options = {
-        body:
-            payload.notification?.body ||
-            payload.data?.body ||
-            'You have an incoming call',
+        body: payload.data?.body || 'You have an incoming call',
         icon: 'https://easosunov.github.io/webrtc_v0/favicon.ico',
         badge: 'https://easosunov.github.io/webrtc_v0/favicon.ico',
         vibrate: [200, 100, 200],
         requireInteraction: true,
-        tag: 'incoming-call',
-        renotify: true,
+        tag: 'incoming-call',  // Same tag replaces previous notification
+        renotify: true,        // Still shows new one
+        timestamp: Date.now(),
         data: payload.data || {},
         actions: [
             { action: 'answer', title: 'Answer' },
             { action: 'dismiss', title: 'Dismiss' }
         ]
     };
-
-    // ✅ NO event.waitUntil here
+    
     self.registration.showNotification(title, options);
 });
 
-// 🔥 RAW push fallback (for debugging + reliability)
-self.addEventListener('push', (event) => {
-    console.log('🔥 RAW PUSH EVENT');
-
-    if (!event.data) return;
-
-    let data = {};
-    try {
-        data = event.data.json();
-    } catch (e) {
-        console.error('Push parse error:', e);
-    }
-
-    // Prevent duplicate notifications if FCM already handled it
-    if (data?.notification) return;
-
-    self.registration.showNotification(
-        data.title || 'Incoming Call',
-        {
-            body: data.body || 'New notification',
-            icon: 'https://easosunov.github.io/webrtc_v0/favicon.ico',
-            data: data
-        }
-    );
-});
-
-// 🔥 Handle notification click
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-
-    const url = event.notification.data?.url || '/webrtc_v0/';
-
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then((clientList) => {
-                for (const client of clientList) {
-                    if (client.url.includes('/webrtc_v0/') && 'focus' in client) {
-                        return client.focus();
-                    }
-                }
-                return clients.openWindow(url);
-            })
-    );
+    
+    const data = event.notification.data;
+    const action = event.action;
+    
+    if (action === 'answer') {
+        const url = data.url || `/webrtc_v0/?callId=${data.callId}&callerId=${data.callerId}`;
+        event.waitUntil(clients.openWindow(url));
+    }
 });
 
-// 🔥 Ensure SW activates immediately
 self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
