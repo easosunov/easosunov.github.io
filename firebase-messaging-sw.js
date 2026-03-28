@@ -1,9 +1,9 @@
-// firebase-messaging-sw.js
-// Root service worker for FCM notifications
+// firebase-messaging-sw.js - v3 (ANSWER ONLY)
+// Version: 3 - Single button: Answer only
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-console.log('🔥 FCM Service Worker LOADED');
+console.log('🔥 FCM Service Worker v3 LOADED - Answer Only');
 
 // Initialize Firebase
 firebase.initializeApp({
@@ -17,9 +17,9 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ==================== FOREGROUND MESSAGES ====================
+// ==================== BACKGROUND MESSAGES ====================
 messaging.onBackgroundMessage((payload) => {
-    console.log('🔥 FCM Background message received:', payload);
+    console.log('🔥 FCM Background message v3:', payload);
     
     const data = payload.data || {};
     
@@ -43,10 +43,9 @@ messaging.onBackgroundMessage((payload) => {
             callerName: callerName,
             url: 'https://easosunov.github.io/webrtc_v0/'
         },
-        // Larger, clearer actions
+        // SINGLE BUTTON - ANSWER ONLY
         actions: [
-            { action: 'answer', title: '✓ ANSWER' },
-            { action: 'dismiss', title: '✗ DECLINE' }
+            { action: 'answer', title: '📞 ANSWER' }
         ]
     };
     
@@ -64,7 +63,7 @@ self.addEventListener('notificationclick', (event) => {
     
     // Handle Answer action
     if (action === 'answer') {
-        console.log('📞 Answering call from:', data.callerId);
+        console.log('📞 ANSWER - Opening call screen');
         
         const url = `https://easosunov.github.io/webrtc_v0/?callId=${data.callId}&callerId=${data.callerId}&autoAnswer=true`;
         
@@ -80,20 +79,10 @@ self.addEventListener('notificationclick', (event) => {
                     return clients.openWindow(url);
                 })
         );
-    } 
-    // Handle Dismiss action - REJECT THE CALL
-    else if (action === 'dismiss') {
-        console.log('❌ Call dismissed/rejected, callId:', data.callId);
-        
-        // Send a request to reject the call via Cloud Function
-        const rejectUrl = `https://us-central1-webrtc-v0.cloudfunctions.net/rejectCall?callId=${data.callId}`;
-        
-        fetch(rejectUrl)
-            .then(response => console.log('Reject request sent:', response.status))
-            .catch(err => console.log('Reject request failed:', err));
     }
-    // Default click - open app
+    // Default click (tap outside button) - just open the app
     else {
+        console.log('Default click - Opening app');
         const url = data.url || 'https://easosunov.github.io/webrtc_v0/';
         event.waitUntil(clients.openWindow(url));
     }
@@ -101,11 +90,11 @@ self.addEventListener('notificationclick', (event) => {
 
 // ==================== SERVICE WORKER LIFECYCLE ====================
 self.addEventListener('install', (event) => {
-    console.log('🔥 Service Worker installing');
+    console.log('🔥 Service Worker v3 installing');
     self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-    console.log('🔥 Service Worker activating');
+    console.log('🔥 Service Worker v3 activating');
     event.waitUntil(self.clients.claim());
 });
