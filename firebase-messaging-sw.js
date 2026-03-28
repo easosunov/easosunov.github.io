@@ -18,23 +18,18 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ==================== FOREGROUND MESSAGES ====================
-// These are handled by the page via onMessage()
-// This handler is for when the app is in the background
-
 messaging.onBackgroundMessage((payload) => {
     console.log('🔥 FCM Background message received:', payload);
     
-    // Extract data from payload (data-only format)
     const data = payload.data || {};
-    const notification = payload.notification || {};
     
     const callId = data.callId;
     const callerId = data.callerId;
-    const callerName = data.callerName || notification.body?.replace('Call from ', '') || 'Someone';
-    const title = data.title || notification.title || '📞 Incoming Call';
+    const callerName = data.callerName || 'Someone';
+    const title = data.title || '📞 Incoming Call';
     
     const options = {
-        body: data.body || notification.body || `Call from ${callerName}`,
+        body: data.body || `Call from ${callerName}`,
         icon: 'https://easosunov.github.io/webrtc_v0/favicon.ico',
         badge: 'https://easosunov.github.io/webrtc_v0/favicon.ico',
         vibrate: [200, 100, 200],
@@ -48,43 +43,19 @@ messaging.onBackgroundMessage((payload) => {
             callerName: callerName,
             url: 'https://easosunov.github.io/webrtc_v0/'
         },
+        // Larger, clearer actions
         actions: [
-            { action: 'answer', title: 'Answer Call' },
-            { action: 'dismiss', title: 'Dismiss' }
+            { action: 'answer', title: '✓ ANSWER' },
+            { action: 'dismiss', title: '✗ DECLINE' }
         ]
     };
     
     self.registration.showNotification(title, options);
 });
 
-// ==================== RAW PUSH HANDLER (Fallback) ====================
-self.addEventListener('push', (event) => {
-    console.log('🔥 RAW PUSH EVENT');
-    
-    if (!event.data) return;
-    
-    let data = {};
-    try {
-        data = event.data.json();
-    } catch (e) {
-        console.error('Push parse error:', e);
-    }
-    
-    // Prevent duplicate if FCM already handled it
-    if (data.notification || data.data) return;
-    
-    self.registration.showNotification(data.title || 'Incoming Call', {
-        body: data.body || 'You have an incoming call',
-        icon: 'https://easosunov.github.io/webrtc_v0/favicon.ico',
-        data: data
-    });
-});
-
 // ==================== NOTIFICATION CLICK HANDLER ====================
 self.addEventListener('notificationclick', (event) => {
-    console.log('🔔 Notification clicked');
-    console.log('Action:', event.action);
-    console.log('Data:', event.notification.data);
+    console.log('🔔 Notification clicked, action:', event.action);
     
     event.notification.close();
     
@@ -93,37 +64,36 @@ self.addEventListener('notificationclick', (event) => {
     
     // Handle Answer action
     if (action === 'answer') {
-        console.log('📞 Answering call');
+        console.log('📞 Answering call from:', data.callerId);
         
-        // Build URL with call parameters for auto-answer
         const url = `https://easosunov.github.io/webrtc_v0/?callId=${data.callId}&callerId=${data.callerId}&autoAnswer=true`;
         
         event.waitUntil(
             clients.matchAll({ type: 'window', includeUncontrolled: true })
                 .then((clientList) => {
-                    // Try to focus existing window/tab
                     for (const client of clientList) {
                         if (client.url.includes('/webrtc_v0/') && 'focus' in client) {
                             client.navigate(url);
                             return client.focus();
                         }
                     }
-                    // Open new window/tab
                     return clients.openWindow(url);
                 })
         );
     } 
-    // Handle Dismiss action
+    // Handle Dismiss action - REJECT THE CALL
     else if (action === 'dismiss') {
-        console.log('❌ Call dismissed');
-        // Optionally, you could send a fetch to reject the call
-        // This requires a Cloud Function endpoint
-        // fetch(`https://us-central1-webrtc-v0.cloudfunctions.net/rejectCall?callId=${data.callId}`)
-        //     .catch(err => console.log('Dismiss request failed:', err));
+        console.log('❌ Call dismissed/rejected, callId:', data.callId);
+        
+        // Send a request to reject the call via Cloud Function
+        const rejectUrl = `https://us-central1-webrtc-v0.cloudfunctions.net/rejectCall?callId=${data.callId}`;
+        
+        fetch(rejectUrl)
+            .then(response => console.log('Reject request sent:', response.status))
+            .catch(err => console.log('Reject request failed:', err));
     }
-    // Default click (anywhere on notification)
+    // Default click - open app
     else {
-        console.log('🔔 Default click');
         const url = data.url || 'https://easosunov.github.io/webrtc_v0/';
         event.waitUntil(clients.openWindow(url));
     }
